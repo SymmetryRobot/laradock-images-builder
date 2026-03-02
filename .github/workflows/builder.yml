@@ -15,7 +15,7 @@ env:
 
 jobs:
   build-services-image:
-    name: Build PHP${{ matrix.php-version }} ${{ matrix.services }} ${{ matrix.platform }}
+    name: Build PHP${{ matrix.php-version }} ${{ matrix.services }}
     runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
@@ -126,6 +126,8 @@ jobs:
                     echo \"deb http://deb.debian.org/debian bookworm main\" >> /etc/apt/sources.list && \\ \n \
                     apt update && apt install -y chromium && ln -s /usr/bin/chromium /usr/bin/chromium-browser \n \
                     " \
+              # print "RUN add-apt-repository ppa:saiarcot895/chromium-beta -y && \\"; \
+              # print "RUN apt update && apt install chromium-browser -y"; \
             print ""
           }; print lines[i]}}' ./laradock/workspace/Dockerfile > ./laradock/workspace/Dockerfile.tmp
           mv ./laradock/workspace/Dockerfile.tmp ./laradock/workspace/Dockerfile
