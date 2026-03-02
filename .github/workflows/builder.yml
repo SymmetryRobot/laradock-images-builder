@@ -1,0 +1,262 @@
+name: Builder
+
+on:
+  schedule:
+    - cron: "00 23 1 * *"
+  workflow_dispatch:
+
+env:
+  PUSH: true
+  IMAGE_NAMESPACE: thanatosdi
+  SERVICES: "workspace nginx php-fpm php-worker laravel-echo-server"
+  DOCKER_BUILD_RECORD_UPLOAD: false
+
+# permissions: {}
+
+jobs:
+  # build-images:
+  #   name: Build PHP${{ matrix.php-version }} ${{ matrix.platform }}
+  #   runs-on: ${{ matrix.runner }}
+  #   strategy:
+  #     fail-fast: false
+  #     matrix:
+  #       php-version: ["8.1", "8.2", "8.3", "8.4", "8.5"]
+  #       services: ["workspace", "php-fpm", "php-worker", "laravel-echo-server"]
+  #       platform: [linux/amd64, linux/arm64]
+  #       include:
+  #         - platform: linux/amd64
+  #           runner: ubuntu-24.04
+  #           slug: "amd64"
+  #         - platform: linux/arm64
+  #           runner: ubuntu-24.04-arm
+  #           slug: "arm64"
+  #   steps:
+  #     - uses: actions/checkout@v6
+  #       with:
+  #         #   token: ${{ secrets._GITHUB_TOKEN }}
+  #         fetch-depth: 1
+  #         submodules: true
+
+  #     - name: Copy env file for php ${{ matrix.php-version }}
+  #       run: |
+  #         cat laradock/.env.example .env.self > laradock/.env
+  #         cd laradock
+  #         docker compose config \
+  #           ${{ env.SERVICES }} \
+  #           -o symmetry-docker-compose.yml
+
+  #     - name: 產生 ${{ matrix.services }} 建構參數
+  #       id: build_args
+  #       run: |
+  #         wget https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64 -O /usr/local/bin/yq &&\
+  #         chmod +x /usr/local/bin/yq
+  #         build_args=$(yq '.services.${{ matrix.services }}.build.args' '${{ github.workspace }}/laradock/symmetry-docker-compose.yml' -o p | awk 'gsub(" ","")')
+  #         echo "args<<EOF" >> $GITHUB_OUTPUT
+  #         echo "$build_args" >> $GITHUB_OUTPUT
+  #         echo "EOF" >> $GITHUB_OUTPUT
+
+  #     - name: Set up Docker Buildx
+  #       uses: docker/setup-buildx-action@v3
+
+  #     - name: Log in to the Docker hub
+  #       uses: docker/login-action@v3
+  #       with:
+  #         username: ${{ vars.DOCKER_USERNAME }}
+  #         password: ${{ secrets.DOCKER_TOKEN }}
+
+  #     - name: Get now date
+  #       id: date
+  #       run: |
+  #         echo "date=$(date +'%Y%m%d')" >> $GITHUB_OUTPUT
+
+  #     - name: Set up XDebug configuration
+  #       if: ${{ matrix.services }} == 'php-fpm' || ${{ matrix.services }} == 'workspace'
+  #       run: |
+  #         cat << EOF | tee ./laradock/${{ matrix.services }}/xdebug.ini
+  #         xdebug.client_host="host.docker.internal"
+  #         xdebug.discover_client_host=0
+  #         xdebug.client_port=9000
+  #         xdebug.idekey=PHPSTORM
+  #         xdebug.mode=debug
+  #         xdebug.start_with_request=0
+  #         xdebug.cli_color=0
+  #         xdebug.output_dir="~/xdebug/phpstorm/tmp/profiling"
+  #         xdebug.remote_handler=dbgp
+  #         xdebug.remote_mode=req
+  #         xdebug.var_display_max_children=-1
+  #         xdebug.var_display_max_data=-1
+  #         xdebug.var_display_max_depth=-1
+  #         EOF
+  #         cat ./laradock/${{ matrix.services }}/xdebug.ini
+
+  #     - name: clean disk
+  #       run: |
+  #         sudo rm -rf /usr/share/dotnet
+  #         sudo rm -rf /opt/ghc
+  #         sudo rm -rf "/usr/local/share/boost"
+  #         sudo rm -rf "$AGENT_TOOLSDIRECTORY"
+
+  #     - name: 增加 apt update 命令在安裝 xdebug 之前
+  #       if: ${{ matrix.services }} == 'workspace'
+  #       run: |
+  #         awk '/RUN if \[ \$\{INSTALL_XDEBUG\} = true \]; then \\$/ \
+  #         {\
+  #           print;\
+  #           print "  apt update && \\"; next
+  #         }\
+  #         {print}' ./laradock/workspace/Dockerfile > ./laradock/workspace/Dockerfile.tmp
+  #         mv ./laradock/workspace/Dockerfile.tmp ./laradock/workspace/Dockerfile
+  #         cat ./laradock/workspace/Dockerfile
+
+  #     - name: Install Chromium-browser into workspace
+  #       if: ${{ matrix.services }} == 'workspace'
+  #       run: |
+  #         awk '/USER root/{last=NR} {lines[NR]=$0} END {for (i=1; i<=NR; i++) {if (i==last) \
+  #         { \
+  #           print "USER root"; \
+  #           printf "RUN apt update && apt install -y wget gnupg2 && \\ \n \
+  #                   gpg --keyserver keyserver.ubuntu.com --recv-keys 0E98404D386FA1D9 && \\ \n \
+  #                   gpg --export 0E98404D386FA1D9 | gpg --dearmour -o /etc/apt/trusted.gpg.d/debian-0E98404D.gpg && \\ \n \
+  #                   gpg --keyserver keyserver.ubuntu.com --recv-keys 6ED0E7B82643E131 && \\ \n \
+  #                   gpg --export 6ED0E7B82643E131 | gpg --dearmour -o /etc/apt/trusted.gpg.d/debian-6ED0E7B8.gpg && \\ \n \
+  #                   gpg --keyserver keyserver.ubuntu.com --recv-keys F8D2585B8783D481 && \\ \n \
+  #                   gpg --export F8D2585B8783D481 | gpg --dearmour -o /etc/apt/trusted.gpg.d/debian-F8D2585B.gpg && \\ \n \
+  #                   echo \"deb http://deb.debian.org/debian bookworm main\" >> /etc/apt/sources.list && \\ \n \
+  #                   apt update && apt install -y chromium && ln -s /usr/bin/chromium /usr/bin/chromium-browser \n \
+  #                   " \
+  #           print ""
+  #         }; print lines[i]}}' ./laradock/workspace/Dockerfile > ./laradock/workspace/Dockerfile.tmp
+  #         mv ./laradock/workspace/Dockerfile.tmp ./laradock/workspace/Dockerfile
+  #         cat ./laradock/workspace/Dockerfile
+
+  #     - name: Build ${{ matrix.services }} image by Action
+  #       # if: ${{ matrix.services != 'workspace' }}
+  #       uses: docker/build-push-action@v6
+  #       with:
+  #         context: ./laradock/${{ matrix.services }}
+  #         platforms: linux/arm64,linux/amd64
+  #         push: ${{ env.PUSH }}
+  #         build-args: |
+  #           ${{ steps.build_args.outputs.args }}
+  #           LARADOCK_PHP_VERSION=${{ matrix.php-version }}
+  #           http_proxy=
+  #           https_proxy=
+  #         tags: |
+  #           asia-east1-docker.pkg.dev/${{ secrets.GCP_PROJECT_NAME }}/laradock/${{ matrix.services }}:latest-${{ matrix.php-version }}
+  #           asia-east1-docker.pkg.dev/${{ secrets.GCP_PROJECT_NAME }}/laradock/${{ matrix.services }}:${{ matrix.php-version }}-${{ steps.date.outputs.date }}
+  #         labels: |
+  #           build_date=${{ steps.date.outputs.date }}
+  #           build_version=${{ steps.date.outputs.date }}
+  #         cache-from: |
+  #           type=registry,ref=asia-east1-docker.pkg.dev/${{ secrets.GCP_PROJECT_NAME }}/laradock-cache/${{ matrix.services }}:${{ matrix.php-version }}
+  #         cache-to: |
+  #           type=registry,ref=asia-east1-docker.pkg.dev/${{ secrets.GCP_PROJECT_NAME }}/laradock-cache/${{ matrix.services }}:${{ matrix.php-version }},mode=max
+
+  build-nginx-image:
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: [linux/amd64, linux/arm64]
+        include:
+          - platform: linux/amd64
+            runner: ubuntu-24.04
+            slug: "amd64"
+          - platform: linux/arm64
+            runner: ubuntu-24.04-arm
+            slug: "arm64"
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+          submodules: true
+
+      - name: Copy env file for Nginx
+        run: |
+          cat laradock/.env.example .env.self > laradock/.env
+          cd laradock
+          docker compose config \
+            nginx \
+            -o symmetry-docker-compose.yml
+
+      - name: 產生 Nginx 建構參數
+        id: build_args
+        run: |
+          ARCH=$(dpkg --print-architecture)
+          wget https://github.com/mikefarah/yq/releases/latest/download/yq_linux_${ARCH} -O /usr/local/bin/yq &&\
+          chmod +x /usr/local/bin/yq
+          build_args=$(yq '.services.nginx.build.args' '${{ github.workspace }}/laradock/symmetry-docker-compose.yml' -o p | awk 'gsub(" ","")')
+          echo "args<<EOF" >> $GITHUB_OUTPUT
+          echo "$build_args" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Docker Metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.IMAGE_NAMESPACE }}/laradock-nginx
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to the Docker hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ vars.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_TOKEN }}
+
+      - name: Build and Push by Digest
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: ./laradock/nginx
+          platforms: ${{ matrix.platform }}
+          labels: ${{ steps.meta.outputs.labels }}
+          # 關鍵設定：這裡一定要輸出 type=image 並且 push-by-digest=true
+          # 這樣才不會互相覆蓋 Tag，而是產生獨立的 Manifest
+          outputs: type=image,name=${{ env.IMAGE_NAMESPACE }}/laradock-nginx,push-by-digest=true,name-canonical=true,push=true
+          cache-from: type=gha,scope=build-nginx-${{ matrix.slug }}
+          cache-to: type=gha,mode=max,scope=build-nginx-${{ matrix.slug }}
+
+      - name: Export Digest
+        # 將產生的 Digest 存成檔案，供下一個 Merge Job 使用
+        run: |
+          mkdir -p /tmp/digests
+          digest="${{ steps.build.outputs.digest }}"
+          touch "/tmp/digests/${digest#sha256:}"
+
+      - name: Upload Digest Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: digests-nginx-${{ matrix.slug }}
+          path: /tmp/digests/*
+          if-no-files-found: error
+          retention-days: 1
+  # 合併 Image 並推送最終 Tag
+  merge-nginx-image:
+    name: Merge Nginx Images
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    needs: build-nginx-image
+    steps:
+      - name: Get current date
+        id: date
+        run: echo "today=$(TZ=Asia/Taipei date +'%Y%m%d')" >> $GITHUB_OUTPUT
+
+      - name: Merge Manifest
+        uses: ThanatosDi/merge-docker-digests@main
+        with:
+          image-name: ${{ env.IMAGE_NAMESPACE }}/laradock-nginx
+          artifact-pattern: digests-nginx-*
+          tags: |
+            latest
+            ${{ steps.date.outputs.today }}
+          timezone: Asia/Taipei
+          registry-username: ${{ vars.DOCKER_USERNAME }}
+          registry-password: ${{ secrets.DOCKER_TOKEN }}
