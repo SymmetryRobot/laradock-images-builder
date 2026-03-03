@@ -20,7 +20,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        php-version: ["8.1", "8.3", "8.4", "8.5"]
+        php-version: ["8.1", "8.3", "8.4"]
         services: ["workspace", "php-fpm", "php-worker"]
         platform: [linux/amd64, linux/arm64]
         include:
@@ -176,7 +176,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        php-version: ["8.1", "8.3", "8.4", "8.5"]
+        php-version: ["8.1", "8.3", "8.4"]
         services: ["workspace", "php-fpm", "php-worker"]
     needs: build-services-image
     steps:
