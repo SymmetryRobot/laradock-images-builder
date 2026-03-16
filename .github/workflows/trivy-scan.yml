@@ -7,6 +7,10 @@ on:
       - completed
   workflow_dispatch:
 
+permissions:
+  actions: read
+  security-events: write
+
 env:
   IMAGE_NAMESPACE: ${{ vars.DOCKER_USERNAME }}
 
