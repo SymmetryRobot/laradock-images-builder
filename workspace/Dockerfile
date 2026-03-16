@@ -155,14 +155,20 @@ RUN sed -i 's/\r//' /root/aliases.sh && \
 ###########################################################################
 # ext-mongodb
 ###########################################################################
+# RUN pecl channel-update pecl.php.net && \
+#     if [ "${PHP_VERSION}" = "8.1" ]; then \
+#         MAKE="make -j$(nproc)" pecl install mongodb-1.21.5; \
+#     else \
+#         MAKE="make -j$(nproc)" pecl install mongodb; \
+#     fi && \
+#     echo "extension=mongodb.so" >> /etc/php/${PHP_VERSION}/cli/conf.d/30-mongodb.ini && \
+#     rm -rf /tmp/pear
+
 RUN pecl channel-update pecl.php.net && \
-    if [ "${PHP_VERSION}" = "8.1" ]; then \
-        MAKE="make -j$(nproc)" pecl install mongodb-1.21.5; \
-    else \
-        MAKE="make -j$(nproc)" pecl install mongodb; \
-    fi && \
+    MAKE="make -j$(nproc)" pecl install mongodb-1.21.5 && \
     echo "extension=mongodb.so" >> /etc/php/${PHP_VERSION}/cli/conf.d/30-mongodb.ini && \
     rm -rf /tmp/pear
+
 
 ###########################################################################
 # Xdebug
