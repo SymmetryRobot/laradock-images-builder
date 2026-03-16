@@ -1,4 +1,4 @@
-# ThanatosDilaradock Images Builder
+# Laradock Images Builder
 
 自動化建置並發布客製化 Laradock Docker 映像檔的 CI/CD 系統，支援多架構（AMD64 / ARM64）與多 PHP 版本。
 
