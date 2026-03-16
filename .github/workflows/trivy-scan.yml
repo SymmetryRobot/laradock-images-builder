@@ -1,0 +1,203 @@
+name: Trivy Vulnerability Scan
+
+on:
+  workflow_run:
+    workflows: ["Builder"]
+    types:
+      - completed
+  workflow_dispatch:
+
+env:
+  IMAGE_NAMESPACE: ${{ vars.DOCKER_USERNAME }}
+
+jobs:
+  scan-services-image:
+    name: Scan PHP${{ matrix.php-version }} ${{ matrix.services }}
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        php-version: ["8.1", "8.3", "8.4"]
+        services: ["workspace", "php-fpm", "php-worker"]
+    steps:
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ env.IMAGE_NAMESPACE }}/laradock-${{ matrix.services }}:${{ matrix.php-version }}
+          format: table
+          exit-code: 0
+          severity: CRITICAL,HIGH
+
+      - name: Run Trivy vulnerability scanner (SARIF)
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ env.IMAGE_NAMESPACE }}/laradock-${{ matrix.services }}:${{ matrix.php-version }}
+          format: sarif
+          output: trivy-results.sarif
+          severity: CRITICAL,HIGH
+
+      - name: Upload Trivy scan results to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v4
+        if: always()
+        with:
+          sarif_file: trivy-results.sarif
+          category: php${{ matrix.php-version }}-${{ matrix.services }}
+
+      - name: Generate summary
+        if: always()
+        run: |
+          IMAGE="${{ env.IMAGE_NAMESPACE }}/laradock-${{ matrix.services }}:${{ matrix.php-version }}"
+          echo "## 🔍 Trivy Scan: \`${IMAGE}\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          if [ ! -f trivy-results.sarif ]; then
+            echo "⚠️ No SARIF results found." >> $GITHUB_STEP_SUMMARY
+            exit 0
+          fi
+
+          TOTAL=$(jq '[.runs[].results[]] | length' trivy-results.sarif)
+          CRITICAL=$(jq '[.runs[].results[] | select(.level == "error" and (.properties.tags // [] | index("security/severity:CRITICAL")))] | length' trivy-results.sarif)
+          HIGH=$(jq '[.runs[].results[] | select(.level == "error" or .level == "warning")] | length' trivy-results.sarif)
+
+          if [ "$TOTAL" -eq 0 ]; then
+            echo "✅ No CRITICAL or HIGH vulnerabilities found." >> $GITHUB_STEP_SUMMARY
+          else
+            echo "| Severity | Count |" >> $GITHUB_STEP_SUMMARY
+            echo "|----------|-------|" >> $GITHUB_STEP_SUMMARY
+            echo "| CRITICAL | ${CRITICAL} |" >> $GITHUB_STEP_SUMMARY
+            echo "| HIGH     | $(( HIGH - CRITICAL )) |" >> $GITHUB_STEP_SUMMARY
+            echo "| **Total**| **${TOTAL}** |" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "<details><summary>Details</summary>" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "| Vulnerability | Severity | Description |" >> $GITHUB_STEP_SUMMARY
+            echo "|---------------|----------|-------------|" >> $GITHUB_STEP_SUMMARY
+            jq -r '.runs[].results[] | "| \(.ruleId) | \(if .level == "error" then "CRITICAL" else "HIGH" end) | \(.message.text | split("\n")[0] | gsub("[|]"; "\\|") | .[0:100]) |"' trivy-results.sarif >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "</details>" >> $GITHUB_STEP_SUMMARY
+          fi
+
+  scan-nginx-image:
+    name: Scan Nginx
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    steps:
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ env.IMAGE_NAMESPACE }}/laradock-nginx:latest
+          format: table
+          exit-code: 0
+          severity: CRITICAL,HIGH
+
+      - name: Run Trivy vulnerability scanner (SARIF)
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ env.IMAGE_NAMESPACE }}/laradock-nginx:latest
+          format: sarif
+          output: trivy-results.sarif
+          severity: CRITICAL,HIGH
+
+      - name: Upload Trivy scan results to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: trivy-results.sarif
+          category: nginx
+
+      - name: Generate summary
+        if: always()
+        run: |
+          IMAGE="${{ env.IMAGE_NAMESPACE }}/laradock-nginx:latest"
+          echo "## 🔍 Trivy Scan: \`${IMAGE}\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          if [ ! -f trivy-results.sarif ]; then
+            echo "⚠️ No SARIF results found." >> $GITHUB_STEP_SUMMARY
+            exit 0
+          fi
+
+          TOTAL=$(jq '[.runs[].results[]] | length' trivy-results.sarif)
+          CRITICAL=$(jq '[.runs[].results[] | select(.level == "error" and (.properties.tags // [] | index("security/severity:CRITICAL")))] | length' trivy-results.sarif)
+          HIGH=$(jq '[.runs[].results[] | select(.level == "error" or .level == "warning")] | length' trivy-results.sarif)
+
+          if [ "$TOTAL" -eq 0 ]; then
+            echo "✅ No CRITICAL or HIGH vulnerabilities found." >> $GITHUB_STEP_SUMMARY
+          else
+            echo "| Severity | Count |" >> $GITHUB_STEP_SUMMARY
+            echo "|----------|-------|" >> $GITHUB_STEP_SUMMARY
+            echo "| CRITICAL | ${CRITICAL} |" >> $GITHUB_STEP_SUMMARY
+            echo "| HIGH     | $(( HIGH - CRITICAL )) |" >> $GITHUB_STEP_SUMMARY
+            echo "| **Total**| **${TOTAL}** |" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "<details><summary>Details</summary>" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "| Vulnerability | Severity | Description |" >> $GITHUB_STEP_SUMMARY
+            echo "|---------------|----------|-------------|" >> $GITHUB_STEP_SUMMARY
+            jq -r '.runs[].results[] | "| \(.ruleId) | \(if .level == "error" then "CRITICAL" else "HIGH" end) | \(.message.text | split("\n")[0] | gsub("[|]"; "\\|") | .[0:100]) |"' trivy-results.sarif >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "</details>" >> $GITHUB_STEP_SUMMARY
+          fi
+
+  scan-laravel-echo-server-image:
+    name: Scan Laravel Echo Server
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    steps:
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ env.IMAGE_NAMESPACE }}/laradock-laravel-echo-server:latest
+          format: table
+          exit-code: 0
+          severity: CRITICAL,HIGH
+
+      - name: Run Trivy vulnerability scanner (SARIF)
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ env.IMAGE_NAMESPACE }}/laradock-laravel-echo-server:latest
+          format: sarif
+          output: trivy-results.sarif
+          severity: CRITICAL,HIGH
+
+      - name: Upload Trivy scan results to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: trivy-results.sarif
+          category: laravel-echo-server
+
+      - name: Generate summary
+        if: always()
+        run: |
+          IMAGE="${{ env.IMAGE_NAMESPACE }}/laradock-laravel-echo-server:latest"
+          echo "## 🔍 Trivy Scan: \`${IMAGE}\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          if [ ! -f trivy-results.sarif ]; then
+            echo "⚠️ No SARIF results found." >> $GITHUB_STEP_SUMMARY
+            exit 0
+          fi
+
+          TOTAL=$(jq '[.runs[].results[]] | length' trivy-results.sarif)
+          CRITICAL=$(jq '[.runs[].results[] | select(.level == "error" and (.properties.tags // [] | index("security/severity:CRITICAL")))] | length' trivy-results.sarif)
+          HIGH=$(jq '[.runs[].results[] | select(.level == "error" or .level == "warning")] | length' trivy-results.sarif)
+
+          if [ "$TOTAL" -eq 0 ]; then
+            echo "✅ No CRITICAL or HIGH vulnerabilities found." >> $GITHUB_STEP_SUMMARY
+          else
+            echo "| Severity | Count |" >> $GITHUB_STEP_SUMMARY
+            echo "|----------|-------|" >> $GITHUB_STEP_SUMMARY
+            echo "| CRITICAL | ${CRITICAL} |" >> $GITHUB_STEP_SUMMARY
+            echo "| HIGH     | $(( HIGH - CRITICAL )) |" >> $GITHUB_STEP_SUMMARY
+            echo "| **Total**| **${TOTAL}** |" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "<details><summary>Details</summary>" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "| Vulnerability | Severity | Description |" >> $GITHUB_STEP_SUMMARY
+            echo "|---------------|----------|-------------|" >> $GITHUB_STEP_SUMMARY
+            jq -r '.runs[].results[] | "| \(.ruleId) | \(if .level == "error" then "CRITICAL" else "HIGH" end) | \(.message.text | split("\n")[0] | gsub("[|]"; "\\|") | .[0:100]) |"' trivy-results.sarif >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "</details>" >> $GITHUB_STEP_SUMMARY
+          fi
