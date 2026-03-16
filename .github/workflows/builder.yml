@@ -8,7 +8,6 @@ on:
 env:
   PUSH: true
   IMAGE_NAMESPACE: thanatosdi
-  SERVICES: "workspace nginx php-fpm php-worker"
   DOCKER_BUILD_RECORD_UPLOAD: false
 
 # permissions: {}
@@ -33,63 +32,22 @@ jobs:
     steps:
       - uses: actions/checkout@v6
         with:
-          #   token: ${{ secrets._GITHUB_TOKEN }}
           fetch-depth: 1
-          submodules: true
-
-      - name: Copy env file for php ${{ matrix.php-version }}
-        run: |
-          cat laradock/.env.example .env.self > laradock/.env
-          cd laradock
-          docker compose config \
-            ${{ env.SERVICES }} \
-            -o symmetry-docker-compose.yml
-
-      - name: 產生 ${{ matrix.services }} 建構參數
-        id: build_args
-        run: |
-          ARCH=$(dpkg --print-architecture)
-          wget https://github.com/mikefarah/yq/releases/latest/download/yq_linux_${ARCH} -O /usr/local/bin/yq &&\
-          chmod +x /usr/local/bin/yq
-          build_args=$(yq '.services.${{ matrix.services }}.build.args' '${{ github.workspace }}/laradock/symmetry-docker-compose.yml' -o p | awk 'gsub(" ","")')
-          echo "args<<EOF" >> $GITHUB_OUTPUT
-          echo "$build_args" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
 
       - name: Log in to the Docker hub
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           username: ${{ vars.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_TOKEN }}
 
       - name: Docker Metadata
         id: meta
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@v6
         with:
           images: ${{ env.IMAGE_NAMESPACE }}/laradock-${{ matrix.services }}
-
-      - name: Set up XDebug configuration
-        if: ${{ matrix.services == 'php-fpm' || matrix.services == 'workspace' }}
-        run: |
-          cat << EOF | tee ./laradock/${{ matrix.services }}/xdebug.ini
-          xdebug.client_host="host.docker.internal"
-          xdebug.discover_client_host=0
-          xdebug.client_port=9000
-          xdebug.idekey=PHPSTORM
-          xdebug.mode=debug
-          xdebug.start_with_request=0
-          xdebug.cli_color=0
-          xdebug.output_dir="~/xdebug/phpstorm/tmp/profiling"
-          xdebug.remote_handler=dbgp
-          xdebug.remote_mode=req
-          xdebug.var_display_max_children=-1
-          xdebug.var_display_max_data=-1
-          xdebug.var_display_max_depth=-1
-          EOF
-          cat ./laradock/${{ matrix.services }}/xdebug.ini
 
       - name: clean disk
         run: |
@@ -98,51 +56,15 @@ jobs:
           sudo rm -rf "/usr/local/share/boost"
           sudo rm -rf "$AGENT_TOOLSDIRECTORY"
 
-      - name: 增加 apt update 命令在安裝 xdebug 之前
-        if: ${{ matrix.services  == 'workspace' }}
-        run: |
-          awk '/RUN if \[ \$\{INSTALL_XDEBUG\} = true \]; then \\$/ \
-          {\
-            print;\
-            print "  apt update && \\"; next
-          }\
-          {print}' ./laradock/workspace/Dockerfile > ./laradock/workspace/Dockerfile.tmp
-          mv ./laradock/workspace/Dockerfile.tmp ./laradock/workspace/Dockerfile
-          cat ./laradock/workspace/Dockerfile
-
-      - name: Install Chromium-browser into workspace
-        if: ${{ matrix.services  == 'workspace'}}
-        run: |
-          awk '/USER root/{last=NR} {lines[NR]=$0} END {for (i=1; i<=NR; i++) {if (i==last) \
-          { \
-            print "USER root"; \
-            printf "RUN apt update && apt install -y wget gnupg2 && \\ \n \
-                    gpg --keyserver keyserver.ubuntu.com --recv-keys 0E98404D386FA1D9 && \\ \n \
-                    gpg --export 0E98404D386FA1D9 | gpg --dearmour -o /etc/apt/trusted.gpg.d/debian-0E98404D.gpg && \\ \n \
-                    gpg --keyserver keyserver.ubuntu.com --recv-keys 6ED0E7B82643E131 && \\ \n \
-                    gpg --export 6ED0E7B82643E131 | gpg --dearmour -o /etc/apt/trusted.gpg.d/debian-6ED0E7B8.gpg && \\ \n \
-                    gpg --keyserver keyserver.ubuntu.com --recv-keys F8D2585B8783D481 && \\ \n \
-                    gpg --export F8D2585B8783D481 | gpg --dearmour -o /etc/apt/trusted.gpg.d/debian-F8D2585B.gpg && \\ \n \
-                    echo \"deb http://deb.debian.org/debian bookworm main\" >> /etc/apt/sources.list && \\ \n \
-                    apt update && apt install -y chromium && ln -s /usr/bin/chromium /usr/bin/chromium-browser \n \
-                    " \
-              # print "RUN add-apt-repository ppa:saiarcot895/chromium-beta -y && \\"; \
-              # print "RUN apt update && apt install chromium-browser -y"; \
-            print ""
-          }; print lines[i]}}' ./laradock/workspace/Dockerfile > ./laradock/workspace/Dockerfile.tmp
-          mv ./laradock/workspace/Dockerfile.tmp ./laradock/workspace/Dockerfile
-          cat ./laradock/workspace/Dockerfile
-
       - name: Build and Push by Digest
         id: build
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
-          context: ./laradock/${{ matrix.services }}
+          context: ./${{ matrix.services }}
           platforms: ${{ matrix.platform }}
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
-            ${{ steps.build_args.outputs.args }}
-            LARADOCK_PHP_VERSION=${{ matrix.php-version }}
+            PHP_VERSION=${{ matrix.php-version }}
             http_proxy=
             https_proxy=
           # 關鍵設定：這裡一定要輸出 type=image 並且 push-by-digest=true
@@ -150,7 +72,6 @@ jobs:
           outputs: type=image,name=${{ env.IMAGE_NAMESPACE }}/laradock-${{ matrix.services }},push-by-digest=true,name-canonical=true,push=true
           cache-from: type=gha,scope=build-${{ matrix.services }}-php${{ matrix.php-version }}-${{ matrix.slug }}
           cache-to: type=gha,mode=max,scope=build-${{ matrix.services }}-php${{ matrix.php-version }}-${{ matrix.slug }}
-
 
       - name: Export Digest
         # 將產生的 Digest 存成檔案，供下一個 Merge Job 使用
@@ -160,7 +81,7 @@ jobs:
           touch "/tmp/digests/${digest#sha256:}"
 
       - name: Upload Digest Artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: digests-php${{ matrix.php-version }}-${{ matrix.services }}-${{ matrix.slug }}
           path: /tmp/digests/*
@@ -185,7 +106,7 @@ jobs:
         run: echo "today=$(TZ=Asia/Taipei date +'%Y%m%d')" >> $GITHUB_OUTPUT
 
       - name: Merge Manifest
-        uses: ThanatosDi/merge-docker-digests@main
+        uses: ThanatosDi/merge-images-digests@v1
         with:
           image-name: ${{ env.IMAGE_NAMESPACE }}/laradock-${{ matrix.services }}
           artifact-pattern: digests-php${{ matrix.php-version }}-${{ matrix.services }}-*
@@ -218,54 +139,32 @@ jobs:
         uses: actions/checkout@v6
         with:
           fetch-depth: 1
-          submodules: true
-
-      - name: Copy env file for Nginx
-        run: |
-          cat laradock/.env.example .env.self > laradock/.env
-          cd laradock
-          docker compose config \
-            nginx \
-            -o symmetry-docker-compose.yml
-
-      - name: 產生 Nginx 建構參數
-        id: build_args
-        run: |
-          ARCH=$(dpkg --print-architecture)
-          wget https://github.com/mikefarah/yq/releases/latest/download/yq_linux_${ARCH} -O /usr/local/bin/yq &&\
-          chmod +x /usr/local/bin/yq
-          build_args=$(yq '.services.nginx.build.args' '${{ github.workspace }}/laradock/symmetry-docker-compose.yml' -o p | awk 'gsub(" ","")')
-          echo "args<<EOF" >> $GITHUB_OUTPUT
-          echo "$build_args" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
 
       - name: Docker Metadata
         id: meta
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@v6
         with:
           images: ${{ env.IMAGE_NAMESPACE }}/laradock-nginx
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
 
       - name: Log in to the Docker hub
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           username: ${{ vars.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_TOKEN }}
 
       - name: Build and Push by Digest
         id: build
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
-          context: ./laradock/nginx
+          context: ./nginx
           platforms: ${{ matrix.platform }}
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
-            ${{ steps.build_args.outputs.args }}
             http_proxy=
             https_proxy=
-
           # 關鍵設定：這裡一定要輸出 type=image 並且 push-by-digest=true
           # 這樣才不會互相覆蓋 Tag，而是產生獨立的 Manifest
           outputs: type=image,name=${{ env.IMAGE_NAMESPACE }}/laradock-nginx,push-by-digest=true,name-canonical=true,push=true
@@ -280,7 +179,7 @@ jobs:
           touch "/tmp/digests/${digest#sha256:}"
 
       - name: Upload Digest Artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: digests-nginx-${{ matrix.slug }}
           path: /tmp/digests/*
@@ -300,7 +199,7 @@ jobs:
         run: echo "today=$(TZ=Asia/Taipei date +'%Y%m%d')" >> $GITHUB_OUTPUT
 
       - name: Merge Manifest
-        uses: ThanatosDi/merge-docker-digests@main
+        uses: ThanatosDi/merge-images-digests@v1
         with:
           image-name: ${{ env.IMAGE_NAMESPACE }}/laradock-nginx
           artifact-pattern: digests-nginx-*
@@ -312,7 +211,7 @@ jobs:
           registry-password: ${{ secrets.DOCKER_TOKEN }}
 
   build-laravel-echo-server-image:
-    name: Build laravel-echo-server ${{ matrix.platform }} (${{ matrix.platform }})
+    name: Build laravel-echo-server (${{ matrix.platform }})
     runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
@@ -333,51 +232,30 @@ jobs:
         uses: actions/checkout@v6
         with:
           fetch-depth: 1
-          submodules: true
-
-      - name: Copy env file for laravel-echo-server
-        run: |
-          cat laradock/.env.example .env.self > laradock/.env
-          cd laradock
-          docker compose config \
-            laravel-echo-server \
-            -o symmetry-docker-compose.yml
-
-      - name: 產生 laravel-echo-server 建構參數
-        id: build_args
-        run: |
-          ARCH=$(dpkg --print-architecture)
-          wget https://github.com/mikefarah/yq/releases/latest/download/yq_linux_${ARCH} -O /usr/local/bin/yq &&\
-          chmod +x /usr/local/bin/yq
-          build_args=$(yq '.services.laravel-echo-server.build.args' '${{ github.workspace }}/laradock/symmetry-docker-compose.yml' -o p | awk 'gsub(" ","")')
-          echo "args<<EOF" >> $GITHUB_OUTPUT
-          echo "$build_args" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
 
       - name: Docker Metadata
         id: meta
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@v6
         with:
           images: ${{ env.IMAGE_NAMESPACE }}/laradock-laravel-echo-server
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
 
       - name: Log in to the Docker hub
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           username: ${{ vars.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_TOKEN }}
 
       - name: Build and Push by Digest
         id: build
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
-          context: ./laradock/laravel-echo-server
+          context: ./laravel-echo-server
           platforms: ${{ matrix.platform }}
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
-            ${{ steps.build_args.outputs.args }}
             http_proxy=
             https_proxy=
           # 關鍵設定：這裡一定要輸出 type=image 並且 push-by-digest=true
@@ -394,7 +272,7 @@ jobs:
           touch "/tmp/digests/${digest#sha256:}"
 
       - name: Upload Digest Artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: digests-laravel-echo-server-${{ matrix.slug }}
           path: /tmp/digests/*
@@ -414,7 +292,7 @@ jobs:
         run: echo "today=$(TZ=Asia/Taipei date +'%Y%m%d')" >> $GITHUB_OUTPUT
 
       - name: Merge Manifest
-        uses: ThanatosDi/merge-docker-digests@main
+        uses: ThanatosDi/merge-images-digests@v1
         with:
           image-name: ${{ env.IMAGE_NAMESPACE }}/laradock-laravel-echo-server
           artifact-pattern: digests-laravel-echo-server-*
