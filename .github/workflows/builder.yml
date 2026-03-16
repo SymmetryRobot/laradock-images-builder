@@ -7,7 +7,7 @@ on:
 
 env:
   PUSH: true
-  IMAGE_NAMESPACE: thanatosdi
+  IMAGE_NAMESPACE: ${{ vars.DOCKER_USERNAME }}
   DOCKER_BUILD_RECORD_UPLOAD: false
 
 # permissions: {}
