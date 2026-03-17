@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE policymap [
+  <!ELEMENT policymap (policy)*>
+  <!ATTLIST policy domain CDATA #REQUIRED
+                   rights CDATA #REQUIRED
+                   pattern CDATA #REQUIRED>
+]>
+<policymap>
+  <!-- 資源限制 -->
+  <policy domain="resource" name="memory" value="256MiB"/>
+  <policy domain="resource" name="map" value="512MiB"/>
+  <policy domain="resource" name="width" value="16KP"/>
+  <policy domain="resource" name="height" value="16KP"/>
+  <policy domain="resource" name="area" value="128MP"/>
+  <policy domain="resource" name="disk" value="1GiB"/>
+  <policy domain="resource" name="thread" value="4"/>
+  <!-- 禁用高風險 coder -->
+  <policy domain="coder" rights="none" pattern="URL"/>
+  <policy domain="coder" rights="none" pattern="HTTPS"/>
+  <policy domain="coder" rights="none" pattern="HTTP"/>
+  <policy domain="coder" rights="none" pattern="FTP"/>
+  <policy domain="coder" rights="none" pattern="MVG"/>
+  <policy domain="coder" rights="none" pattern="MSL"/>
+  <policy domain="coder" rights="none" pattern="TEXT"/>
+  <policy domain="coder" rights="none" pattern="LABEL"/>
+  <policy domain="coder" rights="none" pattern="EPS"/>
+  <policy domain="coder" rights="none" pattern="PS"/>
+  <policy domain="coder" rights="none" pattern="PS2"/>
+  <policy domain="coder" rights="none" pattern="PS3"/>
+  <policy domain="coder" rights="none" pattern="PDF"/>
+  <policy domain="coder" rights="none" pattern="XPS"/>
+  <!-- 禁用 path/delegate 相關風險 -->
+  <policy domain="path" rights="none" pattern="@*"/>
+</policymap>

@@ -14,6 +14,8 @@ RUN apt-get update && apt-get install -y curl ca-certificates \
     && . ${NVM_DIR}/nvm.sh \
     && nvm install ${NODE_VERSION} \
     && nvm alias default ${NODE_VERSION} \
+    && npm update -g minimatch tar \
+    && npm audit fix --global 2>/dev/null || true \
     && nvm cache clear \
     && npm cache clean --force
 
@@ -26,6 +28,11 @@ ARG PHP_VERSION
 ENV DEBIAN_FRONTEND=noninteractive
 
 USER root
+
+###########################################################################
+# 系統安全更新
+###########################################################################
+RUN apt-get update && apt-get upgrade -y && rm -rf /var/lib/apt/lists/*
 
 ###########################################################################
 # PHP（透過 ondrej/php PPA）
@@ -186,6 +193,15 @@ RUN if [ "${PHP_VERSION}" = "8.1" ]; then \
 COPY ./xdebug.ini /etc/php/${PHP_VERSION}/cli/conf.d/xdebug.ini
 
 RUN sed -i "s/xdebug.client_port=9000/xdebug.client_port=${XDEBUG_PORT}/" /etc/php/${PHP_VERSION}/cli/conf.d/xdebug.ini
+
+###########################################################################
+# 最終安全更新 & 清理
+###########################################################################
+RUN apt-get update \
+    && apt-get upgrade -y \
+    && apt-get autoremove -y \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
 ###########################################################################
 # Final

@@ -80,6 +80,37 @@ RUN apt-get update && apt-get install -y passwd && \
     usermod -o -u ${PUID} -g www-data www-data && \
     apt-get purge -y passwd && apt-get autoremove -y && rm -rf /var/lib/apt/lists/*
 
+###########################################################################
+# 安全強化：升級套件、移除建置工具、清理
+# 注意：移除 binutils 後若需在容器內臨時編譯 PHP 擴充，請先執行：
+#   apt-get update && apt-get install -y binutils gcc make autoconf
+###########################################################################
+RUN apt-get update \
+    && apt-get upgrade -y \
+    && apt-get purge -y \
+        binutils \
+        binutils-common \
+        binutils-x86-64-linux-gnu \
+        libbinutils \
+        libctf-nobfd0 \
+        libctf0 \
+        libgprofng0 \
+        libsframe1 \
+        cpp \
+        gcc \
+        2>/dev/null || true \
+    && apt-get autoremove -y \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
+
+###########################################################################
+# ImageMagick policy：限制高風險 coder/delegate 和資源用量
+###########################################################################
+COPY ./imagemagick-policy.xml /tmp/imagemagick-policy.xml
+RUN POLICY_DIR=$(ls -d /etc/ImageMagick* 2>/dev/null | head -1) \
+    && if [ -n "$POLICY_DIR" ]; then cp /tmp/imagemagick-policy.xml "$POLICY_DIR/policy.xml"; fi \
+    && rm -f /tmp/imagemagick-policy.xml
+
 WORKDIR /var/www
 
 CMD ["php-fpm"]
