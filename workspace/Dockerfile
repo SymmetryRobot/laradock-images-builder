@@ -32,7 +32,9 @@ USER root
 ###########################################################################
 # 系統安全更新
 ###########################################################################
-RUN apt-get update && apt-get upgrade -y && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get upgrade -y -o Dpkg::Options::="--force-confold" && rm -rf /var/lib/apt/lists/*
+
+
 
 ###########################################################################
 # PHP（透過 ondrej/php PPA）
