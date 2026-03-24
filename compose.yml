@@ -1,0 +1,43 @@
+x-common-build-args: &common-build-args
+  http_proxy: ""
+  https_proxy: ""
+
+services:
+  workspace:
+    build:
+      context: ./workspace
+      args:
+        <<: *common-build-args
+        PHP_VERSION: ${PHP_VERSION:-8.4}
+        NODE_VERSION: ${NODE_VERSION:-24.14.0}
+    image: laradock-workspace:${PHP_VERSION:-8.4}
+
+  php-fpm:
+    build:
+      context: ./php-fpm
+      args:
+        <<: *common-build-args
+        PHP_VERSION: ${PHP_VERSION:-8.4}
+    image: laradock-php-fpm:${PHP_VERSION:-8.4}
+
+  php-worker:
+    build:
+      context: ./php-worker
+      args:
+        <<: *common-build-args
+        PHP_VERSION: ${PHP_VERSION:-8.4}
+    image: laradock-php-worker:${PHP_VERSION:-8.4}
+
+  nginx:
+    build:
+      context: ./nginx
+      args:
+        <<: *common-build-args
+    image: laradock-nginx:latest
+
+  laravel-echo-server:
+    build:
+      context: ./laravel-echo-server
+      args:
+        <<: *common-build-args
+    image: laradock-laravel-echo-server:latest
