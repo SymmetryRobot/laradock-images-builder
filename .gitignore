@@ -1,1 +1,4 @@
 .mcp.json
+.env
+.secrets
+.vars
