@@ -17,8 +17,8 @@ env:
 jobs:
   build-official-services-image:
     name: Build PHP${{ matrix.php-version }} ${{ matrix.services }} (${{ matrix.platform }})
-    # runs-on: ${{ matrix.runner }}
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.runner }}
+    # runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
