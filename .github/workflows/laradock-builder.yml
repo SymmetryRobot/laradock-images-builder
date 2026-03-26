@@ -201,230 +201,229 @@ jobs:
           registry-username: ${{ vars.DOCKER_USERNAME }}
           registry-password: ${{ secrets.DOCKER_TOKEN }}
 
-  # build-official-nginx-image:
-  #   runs-on: ${{ matrix.runner }}
-  #   strategy:
-  #     fail-fast: false
-  #     matrix:
-  #       platform: [linux/amd64, linux/arm64]
-  #       include:
-  #         - platform: linux/amd64
-  #           runner: ubuntu-24.04
-  #           slug: "amd64"
-  #         - platform: linux/arm64
-  #           runner: ubuntu-24.04-arm
-  #           slug: "arm64"
-  #   permissions:
-  #     contents: read
-  #     packages: write
-  #   steps:
-  #     - name: Checkout
-  #       uses: actions/checkout@v6
-  #       with:
-  #         fetch-depth: 1
-  #         submodules: true
+  build-official-nginx-image:
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: [linux/amd64, linux/arm64]
+        include:
+          - platform: linux/amd64
+            runner: ubuntu-24.04
+            slug: "amd64"
+          - platform: linux/arm64
+            runner: ubuntu-24.04-arm
+            slug: "arm64"
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+          submodules: true
 
-  #     - name: Copy env file for Nginx
-  #       run: |
-  #         cat laradock/.env.example .env.self > laradock/.env
-  #         cd laradock
-  #         docker compose config \
-  #           nginx \
-  #           -o symmetry-docker-compose.yml
+      - name: Copy env file for Nginx
+        run: |
+          cat laradock/.env.example .env.self > laradock/.env
+          cd laradock
+          docker compose config \
+            nginx \
+            -o symmetry-docker-compose.yml
 
-  #     - name: 產生 Nginx 建構參數
-  #       id: build_args
-  #       run: |
-  #         ARCH=$(dpkg --print-architecture)
-  #         wget https://github.com/mikefarah/yq/releases/latest/download/yq_linux_${ARCH} -O /usr/local/bin/yq &&\
-  #         chmod +x /usr/local/bin/yq
-  #         build_args=$(yq '.services.nginx.build.args' '${{ github.workspace }}/laradock/symmetry-docker-compose.yml' -o p | awk 'gsub(" ","")')
-  #         echo "args<<EOF" >> $GITHUB_OUTPUT
-  #         echo "$build_args" >> $GITHUB_OUTPUT
-  #         echo "EOF" >> $GITHUB_OUTPUT
+      - name: 產生 Nginx 建構參數
+        id: build_args
+        run: |
+          ARCH=$(dpkg --print-architecture)
+          wget https://github.com/mikefarah/yq/releases/latest/download/yq_linux_${ARCH} -O /usr/local/bin/yq &&\
+          chmod +x /usr/local/bin/yq
+          build_args=$(yq '.services.nginx.build.args' '${{ github.workspace }}/laradock/symmetry-docker-compose.yml' -o p | awk 'gsub(" ","")')
+          echo "args<<EOF" >> $GITHUB_OUTPUT
+          echo "$build_args" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
 
-  #     - name: Docker Metadata
-  #       id: meta
-  #       uses: docker/metadata-action@v5
-  #       with:
-  #         images: ${{ env.IMAGE_NAMESPACE }}/laradock-official-nginx
+      - name: Docker Metadata
+        id: meta
+        uses: docker/metadata-action@v6
+        with:
+          images: ${{ env.IMAGE_NAMESPACE }}/laradock-official-nginx
 
-  #     - name: Set up Docker Buildx
-  #       uses: docker/setup-buildx-action@v3
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
 
-  #     - name: Log in to the Docker hub
-  #       uses: docker/login-action@v3
-  #       with:
-  #         username: ${{ vars.DOCKER_USERNAME }}
-  #         password: ${{ secrets.DOCKER_TOKEN }}
+      - name: Log in to the Docker hub
+        uses: docker/login-action@v4
+        with:
+          username: ${{ vars.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_TOKEN }}
 
-  #     - name: Build and Push by Digest
-  #       id: build
-  #       uses: docker/build-push-action@v6
-  #       with:
-  #         context: ./laradock/nginx
-  #         platforms: ${{ matrix.platform }}
-  #         labels: ${{ steps.meta.outputs.labels }}
-  #         build-args: |
-  #           ${{ steps.build_args.outputs.args }}
-  #           http_proxy=
-  #           https_proxy=
+      - name: Build and Push by Digest
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: ./laradock/nginx
+          platforms: ${{ matrix.platform }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            ${{ steps.build_args.outputs.args }}
+            http_proxy=
+            https_proxy=
+          # 關鍵設定：這裡一定要輸出 type=image 並且 push-by-digest=true
+          # 這樣才不會互相覆蓋 Tag，而是產生獨立的 Manifest
+          outputs: type=image,name=${{ env.IMAGE_NAMESPACE }}/laradock-official-nginx,push-by-digest=true,name-canonical=true,push=true
+          cache-from: type=gha,scope=build-official-nginx-${{ matrix.slug }}
+          cache-to: type=gha,mode=max,scope=build-official-nginx-${{ matrix.slug }}
 
-  #         # 關鍵設定：這裡一定要輸出 type=image 並且 push-by-digest=true
-  #         # 這樣才不會互相覆蓋 Tag，而是產生獨立的 Manifest
-  #         outputs: type=image,name=${{ env.IMAGE_NAMESPACE }}/laradock-official-nginx,push-by-digest=true,name-canonical=true,push=true
-  #         cache-from: type=gha,scope=build-official-nginx-${{ matrix.slug }}
-  #         cache-to: type=gha,mode=max,scope=build-official-nginx-${{ matrix.slug }}
+      - name: Export Digest
+        # 將產生的 Digest 存成檔案，供下一個 Merge Job 使用
+        run: |
+          mkdir -p /tmp/digests
+          digest="${{ steps.build.outputs.digest }}"
+          touch "/tmp/digests/${digest#sha256:}"
 
-  #     - name: Export Digest
-  #       # 將產生的 Digest 存成檔案，供下一個 Merge Job 使用
-  #       run: |
-  #         mkdir -p /tmp/digests
-  #         digest="${{ steps.build.outputs.digest }}"
-  #         touch "/tmp/digests/${digest#sha256:}"
+      - name: Upload Digest Artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: digests-official-nginx-${{ matrix.slug }}
+          path: /tmp/digests/*
+          if-no-files-found: error
+          retention-days: 1
+  # 合併 Image 並推送最終 Tag
+  merge-nginx-image:
+    name: Merge Nginx Images
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    needs: build-official-nginx-image
+    steps:
+      - name: Get current date
+        id: date
+        run: echo "today=$(TZ=Asia/Taipei date +'%Y%m%d')" >> $GITHUB_OUTPUT
 
-  #     - name: Upload Digest Artifact
-  #       uses: actions/upload-artifact@v7
-  #       with:
-  #         name: digests-official-nginx-${{ matrix.slug }}
-  #         path: /tmp/digests/*
-  #         if-no-files-found: error
-  #         retention-days: 1
-  # # 合併 Image 並推送最終 Tag
-  # merge-nginx-image:
-  #   name: Merge Nginx Images
-  #   runs-on: ubuntu-latest
-  #   permissions:
-  #     contents: read
-  #     packages: write
-  #   needs: build-official-nginx-image
-  #   steps:
-  #     - name: Get current date
-  #       id: date
-  #       run: echo "today=$(TZ=Asia/Taipei date +'%Y%m%d')" >> $GITHUB_OUTPUT
+      - name: Merge Manifest
+        uses: ThanatosDi/merge-docker-digests@v1
+        with:
+          image-name: ${{ env.IMAGE_NAMESPACE }}/laradock-official-nginx
+          artifact-pattern: digests-official-nginx-*
+          tags: |
+            latest
+            ${{ steps.date.outputs.today }}
+          timezone: Asia/Taipei
+          registry-username: ${{ vars.DOCKER_USERNAME }}
+          registry-password: ${{ secrets.DOCKER_TOKEN }}
 
-  #     - name: Merge Manifest
-  #       uses: ThanatosDi/merge-docker-digests@v1
-  #       with:
-  #         image-name: ${{ env.IMAGE_NAMESPACE }}/laradock-official-nginx
-  #         artifact-pattern: digests-official-nginx-*
-  #         tags: |
-  #           latest
-  #           ${{ steps.date.outputs.today }}
-  #         timezone: Asia/Taipei
-  #         registry-username: ${{ vars.DOCKER_USERNAME }}
-  #         registry-password: ${{ secrets.DOCKER_TOKEN }}
+  build-laravel-official-echo-server-image:
+    name: Build laravel-echo-server ${{ matrix.platform }} (${{ matrix.platform }})
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: [linux/amd64, linux/arm64]
+        include:
+          - platform: linux/amd64
+            runner: ubuntu-24.04
+            slug: "amd64"
+          - platform: linux/arm64
+            runner: ubuntu-24.04-arm
+            slug: "arm64"
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+          submodules: true
 
-  # build-laravel-official-echo-server-image:
-  #   name: Build laravel-echo-server ${{ matrix.platform }} (${{ matrix.platform }})
-  #   runs-on: ${{ matrix.runner }}
-  #   strategy:
-  #     fail-fast: false
-  #     matrix:
-  #       platform: [linux/amd64, linux/arm64]
-  #       include:
-  #         - platform: linux/amd64
-  #           runner: ubuntu-24.04
-  #           slug: "amd64"
-  #         - platform: linux/arm64
-  #           runner: ubuntu-24.04-arm
-  #           slug: "arm64"
-  #   permissions:
-  #     contents: read
-  #     packages: write
-  #   steps:
-  #     - name: Checkout
-  #       uses: actions/checkout@v6
-  #       with:
-  #         fetch-depth: 1
-  #         submodules: true
+      - name: Copy env file for laravel-echo-server
+        run: |
+          cat laradock/.env.example .env.self > laradock/.env
+          cd laradock
+          docker compose config \
+            laravel-echo-server \
+            -o symmetry-docker-compose.yml
 
-  #     - name: Copy env file for laravel-echo-server
-  #       run: |
-  #         cat laradock/.env.example .env.self > laradock/.env
-  #         cd laradock
-  #         docker compose config \
-  #           laravel-echo-server \
-  #           -o symmetry-docker-compose.yml
+      - name: 產生 laravel-echo-server 建構參數
+        id: build_args
+        run: |
+          ARCH=$(dpkg --print-architecture)
+          wget https://github.com/mikefarah/yq/releases/latest/download/yq_linux_${ARCH} -O /usr/local/bin/yq &&\
+          chmod +x /usr/local/bin/yq
+          build_args=$(yq '.services.laravel-echo-server.build.args' '${{ github.workspace }}/laradock/symmetry-docker-compose.yml' -o p | awk 'gsub(" ","")')
+          echo "args<<EOF" >> $GITHUB_OUTPUT
+          echo "$build_args" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
 
-  #     - name: 產生 laravel-echo-server 建構參數
-  #       id: build_args
-  #       run: |
-  #         ARCH=$(dpkg --print-architecture)
-  #         wget https://github.com/mikefarah/yq/releases/latest/download/yq_linux_${ARCH} -O /usr/local/bin/yq &&\
-  #         chmod +x /usr/local/bin/yq
-  #         build_args=$(yq '.services.laravel-echo-server.build.args' '${{ github.workspace }}/laradock/symmetry-docker-compose.yml' -o p | awk 'gsub(" ","")')
-  #         echo "args<<EOF" >> $GITHUB_OUTPUT
-  #         echo "$build_args" >> $GITHUB_OUTPUT
-  #         echo "EOF" >> $GITHUB_OUTPUT
+      - name: Docker Metadata
+        id: meta
+        uses: docker/metadata-action@v6
+        with:
+          images: ${{ env.IMAGE_NAMESPACE }}/laradock-laravel-echo-server
 
-  #     - name: Docker Metadata
-  #       id: meta
-  #       uses: docker/metadata-action@v5
-  #       with:
-  #         images: ${{ env.IMAGE_NAMESPACE }}/laradock-laravel-echo-server
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
 
-  #     - name: Set up Docker Buildx
-  #       uses: docker/setup-buildx-action@v3
+      - name: Log in to the Docker hub
+        uses: docker/login-action@v4
+        with:
+          username: ${{ vars.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_TOKEN }}
 
-  #     - name: Log in to the Docker hub
-  #       uses: docker/login-action@v3
-  #       with:
-  #         username: ${{ vars.DOCKER_USERNAME }}
-  #         password: ${{ secrets.DOCKER_TOKEN }}
+      - name: Build and Push by Digest
+        id: build
+        uses: docker/build-push-action@v7
+        with:
+          context: ./laradock/laravel-echo-server
+          platforms: ${{ matrix.platform }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            ${{ steps.build_args.outputs.args }}
+            http_proxy=
+            https_proxy=
+          # 關鍵設定：這裡一定要輸出 type=image 並且 push-by-digest=true
+          # 這樣才不會互相覆蓋 Tag，而是產生獨立的 Manifest
+          outputs: type=image,name=${{ env.IMAGE_NAMESPACE }}/laradock-official-laravel-echo-server,push-by-digest=true,name-canonical=true,push=true
+          cache-from: type=gha,scope=build-laravel-official-echo-server-${{ matrix.slug }}
+          cache-to: type=gha,mode=max,scope=build-laravel-official-echo-server-${{ matrix.slug }}
 
-  #     - name: Build and Push by Digest
-  #       id: build
-  #       uses: docker/build-push-action@v6
-  #       with:
-  #         context: ./laradock/laravel-echo-server
-  #         platforms: ${{ matrix.platform }}
-  #         labels: ${{ steps.meta.outputs.labels }}
-  #         build-args: |
-  #           ${{ steps.build_args.outputs.args }}
-  #           http_proxy=
-  #           https_proxy=
-  #         # 關鍵設定：這裡一定要輸出 type=image 並且 push-by-digest=true
-  #         # 這樣才不會互相覆蓋 Tag，而是產生獨立的 Manifest
-  #         outputs: type=image,name=${{ env.IMAGE_NAMESPACE }}/laradock-official-laravel-echo-server,push-by-digest=true,name-canonical=true,push=true
-  #         cache-from: type=gha,scope=build-laravel-official-echo-server-${{ matrix.slug }}
-  #         cache-to: type=gha,mode=max,scope=build-laravel-official-echo-server-${{ matrix.slug }}
+      - name: Export Digest
+        # 將產生的 Digest 存成檔案，供下一個 Merge Job 使用
+        run: |
+          mkdir -p /tmp/digests
+          digest="${{ steps.build.outputs.digest }}"
+          touch "/tmp/digests/${digest#sha256:}"
 
-  #     - name: Export Digest
-  #       # 將產生的 Digest 存成檔案，供下一個 Merge Job 使用
-  #       run: |
-  #         mkdir -p /tmp/digests
-  #         digest="${{ steps.build.outputs.digest }}"
-  #         touch "/tmp/digests/${digest#sha256:}"
+      - name: Upload Digest Artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: digests-laravel-official-echo-server-${{ matrix.slug }}
+          path: /tmp/digests/*
+          if-no-files-found: error
+          retention-days: 1
+  # 合併 Image 並推送最終 Tag
+  merge-laravel-echo-server-image:
+    name: Merge laravel-official-echo-server Images
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    needs: build-laravel-official-echo-server-image
+    steps:
+      - name: Get current date
+        id: date
+        run: echo "today=$(TZ=Asia/Taipei date +'%Y%m%d')" >> $GITHUB_OUTPUT
 
-  #     - name: Upload Digest Artifact
-  #       uses: actions/upload-artifact@v7
-  #       with:
-  #         name: digests-laravel-official-echo-server-${{ matrix.slug }}
-  #         path: /tmp/digests/*
-  #         if-no-files-found: error
-  #         retention-days: 1
-  # # 合併 Image 並推送最終 Tag
-  # merge-laravel-echo-server-image:
-  #   name: Merge laravel-official-echo-server Images
-  #   runs-on: ubuntu-latest
-  #   permissions:
-  #     contents: read
-  #     packages: write
-  #   needs: build-laravel-official-echo-server-image
-  #   steps:
-  #     - name: Get current date
-  #       id: date
-  #       run: echo "today=$(TZ=Asia/Taipei date +'%Y%m%d')" >> $GITHUB_OUTPUT
-
-  #     - name: Merge Manifest
-  #       uses: ThanatosDi/merge-docker-digests@v1
-  #       with:
-  #         image-name: ${{ env.IMAGE_NAMESPACE }}/laradock-official-laravel-echo-server
-  #         artifact-pattern: digests-laravel-official-echo-server-*
-  #         tags: |
-  #           latest
-  #           ${{ steps.date.outputs.today }}
-  #         timezone: Asia/Taipei
-  #         registry-username: ${{ vars.DOCKER_USERNAME }}
-  #         registry-password: ${{ secrets.DOCKER_TOKEN }}
+      - name: Merge Manifest
+        uses: ThanatosDi/merge-docker-digests@v1
+        with:
+          image-name: ${{ env.IMAGE_NAMESPACE }}/laradock-official-laravel-echo-server
+          artifact-pattern: digests-laravel-official-echo-server-*
+          tags: |
+            latest
+            ${{ steps.date.outputs.today }}
+          timezone: Asia/Taipei
+          registry-username: ${{ vars.DOCKER_USERNAME }}
+          registry-password: ${{ secrets.DOCKER_TOKEN }}
