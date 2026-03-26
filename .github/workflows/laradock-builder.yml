@@ -18,16 +18,12 @@ jobs:
   build-official-services-image:
     name: Build PHP${{ matrix.php-version }} ${{ matrix.services }} (${{ matrix.platform }})
     runs-on: ${{ matrix.runner }}
-    # runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        # php-version: ["8.1", "8.3", "8.4"]
-        php-version: ["8.1"]
-        # services: ["workspace", "php-fpm", "php-worker"]
-        services: ["workspace"]
+        php-version: ["8.1", "8.3", "8.4"]
+        services: ["workspace", "php-fpm", "php-worker"]
         platform: [linux/amd64, linux/arm64]
-        # platform: [linux/arm64]
         include:
           - platform: linux/amd64
             runner: ubuntu-24.04
@@ -38,11 +34,10 @@ jobs:
     steps:
       - uses: actions/checkout@v6
         with:
-          #   token: ${{ secrets._GITHUB_TOKEN }}
           fetch-depth: 1
           submodules: true
 
-      - name: Init submodules (act workaround)
+      - name: Init submodules (Act workaround)
         if: ${{ env.RUN_ON_ACT == 'true' }}
         run: git submodule update --init --recursive
 
@@ -169,7 +164,7 @@ jobs:
           touch "/tmp/digests/${digest#sha256:}"
 
       - name: Upload Digest Artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: digests-official-php${{ matrix.php-version }}-${{ matrix.services }}-${{ matrix.slug }}
           path: /tmp/digests/*
@@ -289,7 +284,7 @@ jobs:
   #         touch "/tmp/digests/${digest#sha256:}"
 
   #     - name: Upload Digest Artifact
-  #       uses: actions/upload-artifact@v4
+  #       uses: actions/upload-artifact@v7
   #       with:
   #         name: digests-official-nginx-${{ matrix.slug }}
   #         path: /tmp/digests/*
@@ -403,7 +398,7 @@ jobs:
   #         touch "/tmp/digests/${digest#sha256:}"
 
   #     - name: Upload Digest Artifact
-  #       uses: actions/upload-artifact@v4
+  #       uses: actions/upload-artifact@v7
   #       with:
   #         name: digests-laravel-official-echo-server-${{ matrix.slug }}
   #         path: /tmp/digests/*
