@@ -37,15 +37,21 @@ RUN install-php-extensions \
         sqlite3 \
         xmlrpc \
         xml \
-        zip
+        zip \
+        opentelemetry
 
 ###########################################################################
-# ext-mongodb（PHP 8.1 需指定版本）
+# ext-mongodb
+# PHP8.5 安裝最新版
+# PHP8.4 安裝 2.1.1
+# PHP8.1~8.3 安裝 1.21.5
 ###########################################################################
-RUN if [ "${PHP_VERSION}" = "8.1" ]; then \
-        install-php-extensions mongodb-1.21.5; \
-    else \
+RUN if [ "${PHP_VERSION}" = "8.5" ]; then \
         install-php-extensions mongodb; \
+    if [ "${PHP_VERSION}" = "8.4" ]; then \
+        install-php-extensions mongodb-2.1.1; \
+    else \
+        install-php-extensions mongodb-1.21.5; \
     fi
 
 ###########################################################################

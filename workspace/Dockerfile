@@ -39,6 +39,8 @@ RUN apt-get update && apt-get upgrade -y -o Dpkg::Options::="--force-confold" &&
 ###########################################################################
 # PHP（透過 ondrej/php PPA）
 ###########################################################################
+COPY --from=mlocati/php-extension-installer /usr/bin/install-php-extensions /usr/local/bin/
+
 RUN apt-get update && apt-get install -y software-properties-common \
     && add-apt-repository -y ppa:ondrej/php \
     && apt-get update \
@@ -68,6 +70,9 @@ RUN apt-get update && apt-get install -y software-properties-common \
         unzip \
         git \
     && rm -rf /var/lib/apt/lists/*
+
+RUN install-php-extensions \
+        opentelemetry
 
 ###########################################################################
 # Chromium（從 Debian bookworm 倉庫安裝，支援 amd64 和 arm64）
@@ -163,6 +168,9 @@ RUN sed -i 's/\r//' /root/aliases.sh && \
 
 ###########################################################################
 # ext-mongodb
+# PHP8.5 安裝最新版
+# PHP8.4 安裝 2.1.1
+# PHP8.1~8.3 安裝 1.21.5
 ###########################################################################
 # RUN pecl channel-update pecl.php.net && \
 #     if [ "${PHP_VERSION}" = "8.1" ]; then \
@@ -173,10 +181,17 @@ RUN sed -i 's/\r//' /root/aliases.sh && \
 #     echo "extension=mongodb.so" >> /etc/php/${PHP_VERSION}/cli/conf.d/30-mongodb.ini && \
 #     rm -rf /tmp/pear
 
-RUN pecl channel-update pecl.php.net && \
-    MAKE="make -j$(nproc)" pecl install mongodb-1.21.5 && \
-    echo "extension=mongodb.so" >> /etc/php/${PHP_VERSION}/cli/conf.d/30-mongodb.ini && \
-    rm -rf /tmp/pear
+# RUN pecl channel-update pecl.php.net && \
+#     MAKE="make -j$(nproc)" pecl install mongodb-1.21.5 && \
+#     echo "extension=mongodb.so" >> /etc/php/${PHP_VERSION}/cli/conf.d/30-mongodb.ini && \
+#     rm -rf /tmp/pear
+RUN if [ "${PHP_VERSION}" = "8.5" ]; then \
+        install-php-extensions mongodb; \
+    if [ "${PHP_VERSION}" = "8.4" ]; then \
+        install-php-extensions mongodb-2.1.1; \
+    else \
+        install-php-extensions mongodb-1.21.5; \
+    fi
 
 
 ###########################################################################
