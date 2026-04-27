@@ -36,7 +36,7 @@ RUN install-php-extensions \
 ###########################################################################
 RUN if [ "${PHP_VERSION}" = "8.5" ]; then \
         install-php-extensions mongodb; \
-    if [ "${PHP_VERSION}" = "8.4" ]; then \
+    elif [ "${PHP_VERSION}" = "8.4" ]; then \
         install-php-extensions mongodb-2.1.1; \
     else \
         install-php-extensions mongodb-1.21.5; \

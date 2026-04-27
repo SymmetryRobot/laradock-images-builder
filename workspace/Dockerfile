@@ -168,12 +168,12 @@ RUN sed -i 's/\r//' /root/aliases.sh && \
 # PHP8.1~8.3 安裝 1.21.5
 ###########################################################################
 RUN pecl channel-update pecl.php.net && \
-    if [ "${PHP_VERSION}" = "8.1" ]; then \
-        MAKE="make -j$(nproc)" pecl install mongodb-1.21.5; \
     if [ "${PHP_VERSION}" = "8.4" ]; then \
         MAKE="make -j$(nproc)" pecl install mongodb-2.1.1; \
-    else \
+    elif [ "${PHP_VERSION}" = "8.5" ]; then \
         MAKE="make -j$(nproc)" pecl install mongodb; \
+    else \
+        MAKE="make -j$(nproc)" pecl install mongodb-1.21.5; \
     fi && \
     echo "extension=mongodb.so" >> /etc/php/${PHP_VERSION}/cli/conf.d/30-mongodb.ini && \
     rm -rf /tmp/pear
