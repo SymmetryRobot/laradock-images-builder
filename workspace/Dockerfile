@@ -92,7 +92,7 @@ RUN set -eux; \
 ###########################################################################
 # Composer
 ###########################################################################
-COPY --from=composer:latest /usr/bin/composer /usr/local/bin/composer
+RUN curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
 
 ###########################################################################
 # SSH（啟用 phusion/baseimage 內建的 sshd 服務）
