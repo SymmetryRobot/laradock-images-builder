@@ -39,10 +39,12 @@ RUN apt-get update && apt-get upgrade -y -o Dpkg::Options::="--force-confold" &&
 ###########################################################################
 # PHP（透過 ondrej/php PPA）
 ###########################################################################
-RUN apt-get update && apt-get install -y software-properties-common \
-    && add-apt-repository -y ppa:ondrej/php \
-    && apt-get update \
-    && apt-get install -y \
+RUN OPCACHE_PKG="php${PHP_VERSION}-opcache"; \
+    if [ "${PHP_VERSION}" = "8.5" ]; then OPCACHE_PKG=""; fi; \
+    apt-get update && apt-get install -y software-properties-common && \
+    add-apt-repository -y ppa:ondrej/php && \
+    apt-get update && \
+    apt-get install -y \
         php${PHP_VERSION}-cli \
         php${PHP_VERSION}-common \
         php${PHP_VERSION}-dev \
@@ -50,7 +52,7 @@ RUN apt-get update && apt-get install -y software-properties-common \
         php${PHP_VERSION}-curl \
         php${PHP_VERSION}-gd \
         php${PHP_VERSION}-mbstring \
-        php${PHP_VERSION}-opcache \
+        ${OPCACHE_PKG} \
         php${PHP_VERSION}-zip \
         php${PHP_VERSION}-bcmath \
         php${PHP_VERSION}-redis \
