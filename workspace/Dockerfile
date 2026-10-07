@@ -63,6 +63,7 @@ RUN OPCACHE_PKG="php${PHP_VERSION}-opcache"; \
         php${PHP_VERSION}-imagick \
         php${PHP_VERSION}-imap \
         php${PHP_VERSION}-soap \
+        php${PHP_VERSION}-pgsql \
         iputils-ping \
         wget \
         curl \
