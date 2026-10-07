@@ -27,7 +27,9 @@ RUN install-php-extensions \
         zip \
         opentelemetry \
         rdkafka \
-        pcntl
+        pcntl \
+        pdo_pgsql \
+        pgsql
 
 
 ###########################################################################
