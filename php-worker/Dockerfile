@@ -39,7 +39,9 @@ RUN install-php-extensions \
         xml \
         zip \
         opentelemetry \
-        rdkafka
+        rdkafka \
+        pdo_pgsql \
+        pgsql
         
 
 ###########################################################################
